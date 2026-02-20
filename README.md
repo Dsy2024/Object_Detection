@@ -77,3 +77,11 @@ names:
   0: person
   1: bus
 ```
+
+## Training
+
+Run `python yolo.py` to train a detection model. You can change the input and output path in the function `yolo_train()`.
+
+## Inference
+
+Run `python infer.py` for inference. Remember to change the `Input image path`, `Trained model path`, `Output image name` and the `Output CSV path` into yours.
