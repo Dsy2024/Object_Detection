@@ -1,0 +1,11 @@
+.venv/
+.gradio/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+*.png
+*.jpg
+*.csv
