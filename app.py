@@ -21,14 +21,10 @@ with gr.Blocks(title="Audiogram Digitizer") as demo:
             output_image = gr.Image(
                 type="filepath", label="Detected Symbols (Drawn on Image)"
             )
-
-    with gr.Row():
-        # Extracted Data Table for visualization
-        output_dataframe = gr.Dataframe(label="Extracted dB Values")
-
-    with gr.Row():
-        # CSV File Download link
-        output_csv = gr.File(label="Download CSV")
+            # Extracted Data Table for visualization
+            output_dataframe = gr.Dataframe(label="Extracted dB Values")
+            # CSV File Download link
+            output_csv = gr.File(label="Download CSV")
 
     # Wire the button to the function
     submit_btn.click(

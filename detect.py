@@ -1,11 +1,30 @@
+import os
 import cv2
 import numpy as np
 import pandas as pd
 from yolo import yolo_infer
+from pathlib import Path
 
 
-CLASS_NAMES = ["O", "X"]
-CLASS_COLORS = [(255, 165, 0), (0, 255, 0)]
+# Paths
+# model_path = "models/yolo11n_detect_OX/weights/best.pt"
+model_path = "models/yolo26l_detect/weights/best.pt"
+# Input image path
+input_image_path = "images/144.jpg"
+
+# CLASS_NAMES = ["O", "X"]  
+CLASS_NAMES = ["<", ">", "O", "X", "[", "]", "□", "△"]
+CLASS_COLORS = [
+    (0, 165, 255),    # orange
+    (0, 255, 0),      # green
+    (255, 255, 0),    # cyan
+    (255, 0, 255),    # magenta
+    (255, 128, 0),    # blue
+    (0, 255, 255),    # yellow
+    (128, 255, 0),    # lime
+    (128, 128, 128),  # gray
+]
+
 
 def detect_and_draw_grid(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -37,8 +56,8 @@ def detect_and_draw_grid(img):
     return x, y, w, h
 
 
-def refine_crop(img, initial_bbox):
-    x, y, w, h = initial_bbox
+def refine_crop(img):
+    x, y, w, h = detect_and_draw_grid(img)
     crop = img[y : y + h, x : x + w]
 
     # 1. Get horizontal and vertical projections
@@ -81,7 +100,7 @@ def refine_crop(img, initial_bbox):
     )
     # Crop
     cropped_audiogram = img[new_y : new_y + new_h, new_x : new_x + new_w]
-    cv2.imwrite("image_with_rect.png", img_with_rect)
+    cv2.imwrite("outputs/image_with_rect.png", img_with_rect)
     
     return cropped_audiogram
 
@@ -126,8 +145,8 @@ def mark_lines(crop_img):
         return groups
     
     # Optional: Save intermediate steps to debug
-    cv2.imwrite("debug_h_connected.png", h_connected)  # See dashes connected
-    cv2.imwrite("debug_h_clean.png", horizontal_lines)  # See symbols removed
+    cv2.imwrite("outputs/debug_h_connected.png", h_connected)  # See dashes connected
+    cv2.imwrite("outputs/debug_h_clean.png", horizontal_lines)  # See symbols removed
 
     final_x = group_indices(x_indices)
     final_y = group_indices(y_indices)
@@ -139,27 +158,29 @@ def mark_lines(crop_img):
     for y in final_y:
         cv2.line(vis_img, (0, y), (w_img, y), (0, 255, 0), 2)  # Green Horizontal
     # Save results
-    cv2.imwrite("annotated_grid.png", vis_img)
+    cv2.imwrite("outputs/annotated_grid.png", vis_img)
 
     return final_x, final_y
+
 
 DEFAULT_FREQUENCIES = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 12000]
 
 def process_audiogram(image_filepath):
     try:
-        # Paths
-        model_path = "models/yolo11n_detect_OX/weights/best.pt"
+        os.makedirs("outputs", exist_ok=True)
+        os.makedirs("outputs/csv", exist_ok=True)
+        os.makedirs("outputs/images", exist_ok=True)
+
         # A name for the temporarily cropped file that YOLO will read
-        temp_crop_path = "temp_cropped_audiogram.png"
+        temp_crop_path = "outputs/temp_cropped_audiogram.png"
         # Output paths for results
-        final_annotated_img_path = "annotated_symbols_audiogram.jpg"
-        csv_output_path = "audiogram_results.csv"
+        final_annotated_img_path = "outputs/annotated_symbols_audiogram.jpg"
+        csv_output_path = "outputs/csv/" + image_filepath.split("/")[-1].rsplit(".", 1)[0] + ".csv"
 
         # 1. Run OpenCV crop and grid detection
         img = cv2.imread(image_filepath)
-        x, y, w, h = detect_and_draw_grid(img)
         # Modified refine_crop to return the image object
-        cropped_img = refine_crop(img, (x, y, w, h))
+        cropped_img = refine_crop(img)
 
         # Modified mark_lines to take an image object
         final_x, final_y = mark_lines(cropped_img)
@@ -183,7 +204,7 @@ def process_audiogram(image_filepath):
         results = yolo_infer(
             model_path=model_path,
             img=temp_crop_path,
-            # save_name=yolo_output_img # Commented out; we will do the drawing explicitly for a visual result.
+            save_name=image_filepath.split("/")[-1]
         )
 
         # Prepare the cropped image for drawing annotations directly in Python
@@ -256,15 +277,21 @@ def process_audiogram(image_filepath):
         wide = wide.reindex(columns=DEFAULT_FREQUENCIES).sort_index()
 
         # Save CSV file
-        wide.to_csv(csv_output_path, index_label="cls", float_format="%.2f")
+        wide.to_csv(csv_output_path, index_label="Hz")
+        display_df = wide.reset_index().fillna("")
 
         # Gradio expects: Image file path, Dataframe object, File file path (for download)
         # We are now returning the explicitly annotated image path.
-        return final_annotated_img_path, wide.reset_index(), csv_output_path
+        return final_annotated_img_path, display_df, csv_output_path
 
     except Exception as e:
         return None, pd.DataFrame({"Error": [str(e)]}), None
 
 
 if __name__ == "__main__":
-    process_audiogram("images/58.jpg")
+    # process_audiogram(input_image_path)
+    
+    folder = Path("images")
+    for f in sorted(folder.iterdir()):
+        if f.is_file():
+            process_audiogram("images/" + f.name)

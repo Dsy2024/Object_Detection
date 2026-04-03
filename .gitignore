@@ -13,3 +13,5 @@ temp/
 *.png
 *.jpg
 *.csv
+*.json
+*.pt

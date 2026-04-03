@@ -1,19 +1,39 @@
 # Training Autoaudiogram Process
 
-## [YOLO11](https://docs.ultralytics.com/models/yolo11/) Usage Example
 
-This section provides simple YOLO11 training and inference examples. For full documentation on these and other modes, see the Predict, Train, Val, and Export docs pages.
-Note that the example below is for YOLO11 Detect models for object detection. For additional supported tasks, see the Segment, Classify, OBB, and Pose docs.
+## Setup
+
+Install the packages with [uv](https://docs.astral.sh/uv/getting-started/installation/).
+```bash
+uv venv
+source .venv/bin/activate
+uv sync
+```
+
+
+## Quick Run
+
+Run the code below and open it on [http://localhost:7860](http://localhost:7860).
+```py
+python app.py
+```
+
+
+## [YOLO26](https://docs.ultralytics.com/models/yolo26/) Usage Example
+
+This section provides simple YOLO26 training and inference examples. For full documentation on these and other modes, see the Predict, Train, Val, and Export docs pages.
+Note that the example below is for YOLO26 Detect models for object detection. For additional supported tasks, see the Segment, Classify, OBB, and Pose docs.
 
 ```py
 from ultralytics import YOLO
-# Load a COCO-pretrained YOLO11n model
-model = YOLO("yolo11n.pt")
+# Load a COCO-pretrained YOLO26n model
+model = YOLO("yolo26n.pt")
 # Train the model on the COCO8 example dataset for 100 epochs
 results = model.train(data="coco8.yaml", epochs=100, imgsz=640)
-# Run inference with the YOLO11n model on the 'bus.jpg' image
+# Run inference with the YOLO26n model on the 'bus.jpg' image
 results = model("path/to/bus.jpg")
 ```
+
 
 ## Data Collection
 
@@ -41,6 +61,7 @@ label-studio start
 ```
 <img src="figure/figure1.png" alt="drawing" width="400"/>
 7. Export data as YOLO with Images.
+
 
 ## Folder Structure
 
@@ -78,10 +99,11 @@ names:
   1: bus
 ```
 
+
 ## Training
 
 Run `python yolo.py` to train a detection model. You can change the input and output path in the function `yolo_train()`.
 
 ## Inference
 
-Run `python infer.py` for inference. Remember to change the `Input image path`, `Trained model path`, `Output image name` and the `Output CSV path` into yours.
+Run `python detect.py` for inference. Remember to change the `Model path` and `Input image path` into yours.
