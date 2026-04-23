@@ -15,4 +15,5 @@ temp/
 *.csv
 *.json
 *.pt
+*.db
 !models/yolo26l_detect/weights/*.pt
