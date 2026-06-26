@@ -19,7 +19,7 @@ def yolo_infer(model_path=None, img="images/65.jpg", save_name="0.jpg"):
 
 
 def yolo_train():
-    model = YOLO("yolo26l.pt")
+    model = YOLO("models/yolo26l.pt")
     # Train the model on the dataset for 100 epochs
     model.train(data="config.yaml", epochs=100, imgsz=640, save=True, project="models/", name="yolo26l_detect", exist_ok=True) # The model output path will be models/yolo26l_detect/weights/best.pt
 

@@ -3,7 +3,7 @@ import easyocr
 import re
 import numpy as np
 from pathlib import Path
-from database import insert_detected_info
+from scripts.db import upsert_record
 
 reader = easyocr.Reader(['en', 'ch_tra'], gpu=True)
 
@@ -68,11 +68,11 @@ def process_patient_info(image_path, db_path="patient_info.db"):
     image_path = Path(image_path)
     name, mrn, raw_text = ocr_detect_top_left(image_path, save_crop=True)
 
-    insert_detected_info(
-        db_path=db_path,
-        image_filename=image_path.name,
+    upsert_record(
+        serial_number=mrn,
         patient_name=name,
-        mrn=mrn
+        doctor_name="Unknown",  # Replace with actual doctor name if available
+        audiogram=str(image_path)
     )
 
     print("Detected:")
@@ -82,4 +82,5 @@ def process_patient_info(image_path, db_path="patient_info.db"):
     print(raw_text)
 
 if __name__ == "__main__":
-    process_patient_info("temp/1.jpg")
+    for i in range(1, 11):
+        process_patient_info(f"temp/{i}.jpg")

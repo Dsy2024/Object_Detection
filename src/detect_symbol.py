@@ -10,7 +10,7 @@ from pathlib import Path
 # model_path = "models/yolo11n_detect_OX/weights/best.pt"
 model_path = "models/yolo26l_detect/weights/best.pt"
 # Input image path
-input_image_path = "images/144.jpg"
+input_image_path = "data/raw/144.jpg"
 
 # CLASS_NAMES = ["O", "X"]  
 CLASS_NAMES = ["<", ">", "O", "X", "[", "]", "□", "△"]
@@ -100,7 +100,7 @@ def refine_crop(img):
     )
     # Crop
     cropped_audiogram = img[new_y : new_y + new_h, new_x : new_x + new_w]
-    cv2.imwrite("outputs/image_with_rect.png", img_with_rect)
+    cv2.imwrite("outputs/debug/image_with_rect.png", img_with_rect)
     
     return cropped_audiogram
 
@@ -145,8 +145,8 @@ def mark_lines(crop_img):
         return groups
     
     # Optional: Save intermediate steps to debug
-    cv2.imwrite("outputs/debug_h_connected.png", h_connected)  # See dashes connected
-    cv2.imwrite("outputs/debug_h_clean.png", horizontal_lines)  # See symbols removed
+    cv2.imwrite("outputs/debug/h_connected.png", h_connected)  # See dashes connected
+    cv2.imwrite("outputs/debug/h_clean.png", horizontal_lines)  # See symbols removed
 
     final_x = group_indices(x_indices)
     final_y = group_indices(y_indices)
@@ -158,7 +158,7 @@ def mark_lines(crop_img):
     for y in final_y:
         cv2.line(vis_img, (0, y), (w_img, y), (0, 255, 0), 2)  # Green Horizontal
     # Save results
-    cv2.imwrite("outputs/annotated_grid.png", vis_img)
+    cv2.imwrite("outputs/debug/annotated_grid.png", vis_img)
 
     return final_x, final_y
 
@@ -172,9 +172,9 @@ def process_audiogram(image_filepath):
         os.makedirs("outputs/images", exist_ok=True)
 
         # A name for the temporarily cropped file that YOLO will read
-        temp_crop_path = "outputs/temp_cropped_audiogram.png"
+        temp_crop_path = "outputs/debug/cropped_audiogram.png"
         # Output paths for results
-        final_annotated_img_path = "outputs/annotated_symbols_audiogram.jpg"
+        final_annotated_img_path = "outputs/debug/annotated_symbols_audiogram.jpg"
         csv_output_path = "outputs/csv/" + image_filepath.split("/")[-1].rsplit(".", 1)[0] + ".csv"
 
         # 1. Run OpenCV crop and grid detection
@@ -289,9 +289,9 @@ def process_audiogram(image_filepath):
 
 
 if __name__ == "__main__":
-    # process_audiogram(input_image_path)
+    process_audiogram(input_image_path)
     
-    folder = Path("images")
-    for f in sorted(folder.iterdir()):
-        if f.is_file():
-            process_audiogram("images/" + f.name)
+    # folder = Path("images")
+    # for f in sorted(folder.iterdir()):
+    #     if f.is_file():
+    #         process_audiogram("images/" + f.name)

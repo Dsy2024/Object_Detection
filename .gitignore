@@ -16,4 +16,5 @@ temp/
 *.json
 *.pt
 *.db
+*.txt
 !models/yolo26l_detect/weights/*.pt

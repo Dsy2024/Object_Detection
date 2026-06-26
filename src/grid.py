@@ -1,5 +1,5 @@
 import cv2
-from detect import refine_crop
+from detect_symbol import refine_crop
 
 
 if __name__ == "__main__":

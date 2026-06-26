@@ -1,5 +1,5 @@
 import gradio as gr
-from detect import process_audiogram
+from src.detect_symbol import process_audiogram
 
 
 # --- Gradio UI Definition ---

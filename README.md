@@ -1,27 +1,81 @@
-# Training Autoaudiogram Process
+# AutoAudiogram
 
+An automatic audiogram analysis system that detects audiogram symbols, extracts patient information using OCR, and stores the results into a database.
+
+## Features
+
+🎯 Audiogram symbol detection using YOLO26
+
+📝 OCR support
+
+- EasyOCR
+
+- RapidOCR
+
+- PaddleOCR
+
+- PaddleOCR-VL
+
+- HunyuanOCR
+
+👤 Fake patient information generation
+
+💾 SQLite database management
+
+📊 OCR accuracy validation
+
+🌐 Gradio web interface
+
+## Project Structure
+
+```
+AutoAudiogram/
+│
+├── app.py
+├── config.yaml
+├── db.db
+│
+├── data/
+│
+├── models/
+│
+├── outputs/
+│   ├── debug/
+│   ├── images/
+│   └── ocr/
+│
+├── scripts/
+│   └── ocr/
+|
+├── src/
+│
+└── README.md
+```
 
 ## Setup
 
-Install the packages with [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Install dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
 ```bash
 uv venv
 source .venv/bin/activate
 uv sync
 ```
 
-
 ## Quick Run
 
 Run the code below and open it on [http://localhost:7860](http://localhost:7860).
+
 ```py
 python app.py
 ```
 
+# Object Detection
 
 ## [YOLO26](https://docs.ultralytics.com/models/yolo26/) Usage Example
 
 This section provides simple YOLO26 training and inference examples. For full documentation on these and other modes, see the Predict, Train, Val, and Export docs pages.
+
 Note that the example below is for YOLO26 Detect models for object detection. For additional supported tasks, see the Segment, Classify, OBB, and Pose docs.
 
 ```py
@@ -34,22 +88,27 @@ results = model.train(data="coco8.yaml", epochs=100, imgsz=640)
 results = model("path/to/bus.jpg")
 ```
 
-
 ## Data Collection
 
 For the data collection, we use [Label Studio](https://labelstud.io/) for labeling.
+
 1. Install Label Studio:
+
 ```bash
 pip install label-studio
 ```
+
 2. Start Label Studio:
+
 ```bash
 label-studio start
 ```
+
 3. Open Label Studio at http://localhost:8080.
 4. Click Create to create a project and start labeling data.
 5. Click Data Import and upload the images that you want to label.
 6. Click Labeling Interface in Settings and choose a template for your use case. For example:
+
 ```
 <View>
   <Image name="image" value="$image"/>
@@ -59,38 +118,39 @@ label-studio start
   </RectangleLabels>
 </View>
 ```
+
 <img src="figure/figure1.png" alt="drawing" width="400"/>
 7. Export data as YOLO with Images.
-
 
 ## Folder Structure
 
 Organize the data as follows:
+
 ```
-autoaudiogram
-|__data
-   |__images
-      |__train
-         |__1.jpg
-      |__val
-         |__2.jpg
-   |__labels
-      |__train
-         |__1.txt
-      |__val
-         |__2.txt
-|__config.yaml
-|__train.py
+Data/
+│
+├── images/
+│   ├── train/
+│   │   └── 1.jpg
+│   └── val/
+│       └── 2.jpg
+|
+└── labels/
+    ├── train/
+    │   └── 1.txt
+    └── val/
+        └── 2.txt
 ```
 
 Prepare a yaml file like this:
+
 ```
 # Dataset root directory
 path: ../data
 
 # Relative paths to image directories
-train: images/train 
-val: images/val 
+train: images/train
+val: images/val
 test:  # optional
 
 # Class names dictionary
@@ -99,11 +159,70 @@ names:
   1: bus
 ```
 
+## Running
 
-## Training
+Train YOLO model
 
-Run `python yolo.py` to train a detection model. You can change the input and output path in the function `yolo_train()`.
+```bash
+python src/yolo.py
+```
 
-## Inference
+Run inference
 
-Run `python detect.py` for inference. Remember to change the `Model path` and `Input image path` into yours.
+```bash
+python src/detect_symbol.py
+```
+
+# OCR
+
+Supported OCR engines, setup the below 3 larger models by yourself if you want to use them.
+
+- EasyOCR
+
+- RapidOCR
+
+- [PaddleOCR](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html)
+
+- [PaddleOCR-VL](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL.html)
+
+- [HunyuanOCR](https://github.com/Tencent-Hunyuan/HunyuanOCR#-quick-start-with-vllm--recommended)
+
+## Database
+
+Patient information is stored in SQLite.
+
+Tables
+
+- patient
+
+- patient_case
+
+Setup database
+
+```bash
+python -m scripts.db
+```
+
+## Fake Data Generation
+
+Generate fake patient information for OCR evaluation.
+
+```bash
+python -m scripts.add_fake_data
+```
+
+Generated fields
+
+- Doctor
+
+- Patient
+
+- Serial Number
+
+## Validation
+
+Evaluate OCR performance, change the model in line 84-88 in `/scripts/validate_ocr.py`.
+
+```bash
+python -m scripts.validate_ocr
+```
