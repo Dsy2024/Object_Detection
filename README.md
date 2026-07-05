@@ -205,7 +205,7 @@ python -m scripts.db
 
 ## Fake Data Generation
 
-Generate fake patient information for OCR evaluation.
+Generate fake patient information for OCR evaluation, put your images inside `/data/raw`.
 
 ```bash
 python -m scripts.add_fake_data

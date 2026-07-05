@@ -13,9 +13,8 @@ def main():
     rows = []
 
     for template_file in templates[:]:
-        fake_file_path, data = add_fake_data(template_file, IMAGE_PATH, OUTPUT_PATH)
+        _, data = add_fake_data(template_file, IMAGE_PATH, OUTPUT_PATH)
 
-        data["file_path"] = fake_file_path
         rows.append(data)
 
     df = pd.DataFrame(rows)

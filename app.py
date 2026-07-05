@@ -1,5 +1,22 @@
 import gradio as gr
 from src.detect_symbol import process_audiogram
+from scripts.validate_ocr import ocr
+
+
+def process_all(image_path):
+
+    output_image, df, csv = process_audiogram(image_path)
+
+    ocr_result = ocr(image_path)
+
+    return (
+        output_image,
+        df,
+        csv,
+        ocr_result["doctor"],
+        ocr_result["patient"],
+        ocr_result["serial"],
+    )
 
 
 # --- Gradio UI Definition ---
@@ -26,12 +43,25 @@ with gr.Blocks(title="Audiogram Digitizer") as demo:
             # CSV File Download link
             output_csv = gr.File(label="Download CSV")
 
+            doctor = gr.Textbox(label="Doctor")
+            patient = gr.Textbox(label="Patient")
+            serial = gr.Textbox(label="Serial Number")
+
     # Wire the button to the function
     submit_btn.click(
-        fn=process_audiogram,
-        inputs=[input_image],
-        outputs=[output_image, output_dataframe, output_csv],
+        fn=process_all,
+        inputs=input_image,
+        outputs=[
+            output_image,
+            output_dataframe,
+            output_csv,
+            doctor,
+            patient,
+            serial,
+        ],
     )
+
+    
 
 if __name__ == "__main__":
     demo.launch(share=True)

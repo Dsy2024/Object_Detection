@@ -75,10 +75,31 @@ def easy_ocr(file_paths):
     return data_list
 
 
+def ocr(file_path):
+    
+    engine = RapidOCR(
+        params={
+            "Det.lang_type": LangDet.CH,
+        }
+    )
+
+    tmp_path = "outputs/debug/crop_top.png"
+
+    print(f"\nProcessing: {file_path}")
+    img = Image.open(file_path)
+    img = crop_top(img)
+    result = engine(tmp_path)
+    data = extract_data(result.txts, file_path)
+
+    save_extracted_record(data, file_path)
+
+    return data
+
+
 def main():
     gt_df = pd.read_csv(GT_CSV)
 
-    fake_file_paths = gt_df["file_path"].tolist()
+    fake_file_paths = gt_df["path"].tolist()
     fake_data = gt_df.to_dict("records")
 
     # extracted_data = easy_ocr(fake_file_paths)

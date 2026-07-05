@@ -18,9 +18,10 @@ def init_db(db_path=DB_PATH):
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS patient_case (
-            serial_number TEXT PRIMARY KEY,
-            patient_id INTEGER,
-            doctor_name TEXT not NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            serial_number TEXT UNIQUE,
+            doctor_name TEXT,
             audiogram TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -57,8 +58,8 @@ def upsert_record(serial_number, patient_name, doctor_name, audiogram=None, db_p
     # insert patient case
     cur.execute("""
         INSERT INTO patient_case (
-            serial_number,
             patient_id,
+            serial_number,
             doctor_name,
             audiogram
         )
@@ -68,7 +69,7 @@ def upsert_record(serial_number, patient_name, doctor_name, audiogram=None, db_p
             doctor_name = excluded.doctor_name,
             audiogram = excluded.audiogram,
             updated_at = CURRENT_TIMESTAMP;
-    """, (serial_number, patient_id, doctor_name, audiogram))
+    """, (patient_id, serial_number, doctor_name, audiogram))
 
     conn.commit()
     conn.close()
@@ -91,3 +92,4 @@ def clear_tables(db_path="db.db"):
 
 if __name__ == "__main__":
     init_db()
+    # clear_tables()

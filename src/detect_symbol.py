@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
-from yolo import yolo_infer
+from .yolo import yolo_infer
 from pathlib import Path
 
 
