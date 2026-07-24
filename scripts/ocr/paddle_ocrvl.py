@@ -1,5 +1,4 @@
 from pathlib import Path
-from paddleocr import PaddleOCRVL
 from PIL import Image
 from ..utils import crop_top, extract_data, save_extracted_record
 
@@ -11,6 +10,15 @@ def init_pipeline():
     global pipeline
 
     if pipeline is None:
+        try:
+            from paddleocr import PaddleOCRVL
+        except ImportError as exc:
+            raise ImportError(
+                "PaddleOCR-VL could not import its PaddlePaddle backend. "
+                "Install the correct package (`paddlepaddle`, or `paddlepaddle-gpu` "
+                "for your CUDA setup) and remove the unrelated `paddle` package."
+            ) from exc
+
         # NVIDIA GPU
         pipeline = PaddleOCRVL(
             # pipeline_version="v1.5",

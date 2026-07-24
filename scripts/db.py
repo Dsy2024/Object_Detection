@@ -91,5 +91,5 @@ def clear_tables(db_path="db.db"):
 
 
 if __name__ == "__main__":
-    init_db()
-    # clear_tables()
+    # init_db()
+    clear_tables()

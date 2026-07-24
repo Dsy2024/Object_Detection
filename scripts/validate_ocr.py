@@ -7,14 +7,29 @@ import pandas as pd
 from pathlib import Path
 from rapidocr import LangDet, RapidOCR
 from .utils import crop_top, extract_data, save_extracted_record, validation
-from .ocr.paddle_ocr import paddle_ocr
-from .ocr.paddle_ocrvl import paddle_ocrvl
-from .ocr.hunyuan_ocr import hunyuanocr
 
 
 GT_CSV = "outputs/ocr/fake_ground_truth.csv"
 DATASET_DIR = Path("scripts/ocr/TC-STR")
 LABEL_FILE = DATASET_DIR / "test_labels.txt"
+
+
+def paddle_ocr(file_paths):
+    from .ocr.paddle_ocr import paddle_ocr as run_paddle_ocr
+
+    return run_paddle_ocr(file_paths)
+
+
+def paddle_ocrvl(file_paths):
+    from .ocr.paddle_ocrvl import paddle_ocrvl as run_paddle_ocrvl
+
+    return run_paddle_ocrvl(file_paths)
+
+
+def hunyuanocr(file_paths):
+    from .ocr.hunyuan_ocr import hunyuanocr as run_hunyuanocr
+
+    return run_hunyuanocr(file_paths)
 
 
 def rapidocr(file_paths):
@@ -128,11 +143,11 @@ def validate():
 
     print(f"Total images: {len(file_paths)}")
 
-    # extracted_data = easy_ocr(file_paths)
+    extracted_data = easy_ocr(file_paths)
     # extracted_data = rapidocr(file_paths)
     # extracted_data = paddle_ocr(file_paths)
     # extracted_data = paddle_ocrvl(file_paths)
-    extracted_data = hunyuanocr(file_paths)
+    # extracted_data = hunyuanocr(file_paths)
 
     correct = 0
 

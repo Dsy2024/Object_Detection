@@ -221,7 +221,7 @@ Generated fields
 
 ## Validation
 
-Evaluate OCR performance, change the model in line 84-88 in `/scripts/validate_ocr.py`.
+Evaluate OCR performance, change the model in line 120-124 in `/scripts/validate_ocr.py`.
 
 ```bash
 python -m scripts.validate_ocr

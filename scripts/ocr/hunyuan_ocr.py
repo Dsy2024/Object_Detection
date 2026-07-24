@@ -1,6 +1,4 @@
-from vllm import LLM, SamplingParams
 from PIL import Image
-from transformers import AutoProcessor
 from ..utils import extract_data, save_extracted_record, crop_top
 
 
@@ -35,6 +33,15 @@ def init_model():
     global sampling_params
 
     if llm is None:
+        try:
+            from transformers import AutoProcessor
+            from vllm import LLM, SamplingParams
+        except ImportError as exc:
+            raise ImportError(
+                "HunyuanOCR requires optional dependencies that are not installed. "
+                "Install `vllm` and `transformers`, or keep the hunyuanocr backend disabled."
+            ) from exc
+
         model_path = "tencent/HunyuanOCR"
         llm = LLM(model=model_path, trust_remote_code=True, max_model_len=4096, gpu_memory_utilization=0.8)
         processor = AutoProcessor.from_pretrained(model_path)
