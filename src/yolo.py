@@ -1,4 +1,15 @@
+import re
+from pathlib import Path
+
 from ultralytics import YOLO
+
+
+def safe_filename(path, default="result.jpg"):
+    name = re.split(r"[\\/]+", str(path))[-1]
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+    if name in {"", ".", ".."}:
+        return default
+    return name
 
 
 def yolo_infer(model_path=None, img="images/65.jpg", save_name="0.jpg"):
@@ -12,8 +23,9 @@ def yolo_infer(model_path=None, img="images/65.jpg", save_name="0.jpg"):
     results = model(img)
 
     # Save the results with bounding boxes drawn on the image
+    output_path = Path("outputs") / "images" / safe_filename(save_name)
     for r in results:
-        r.save(f"outputs/images/{save_name}")
+        r.save(str(output_path))
 
     return results
 

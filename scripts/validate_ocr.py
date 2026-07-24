@@ -14,6 +14,24 @@ DATASET_DIR = Path("scripts/ocr/TC-STR")
 LABEL_FILE = DATASET_DIR / "test_labels.txt"
 
 
+def resolve_image_path(image_filepath):
+    path_text = str(image_filepath).strip().strip('"')
+    candidates = [line.strip().strip('"') for line in path_text.splitlines() if line.strip()]
+    candidates.append(path_text)
+
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
+    for candidate in candidates:
+        path = Path(candidate)
+        if path.is_file():
+            return path
+        if path.is_dir():
+            for child in path.iterdir():
+                if child.is_file() and child.suffix.lower() in image_exts:
+                    return child
+
+    return Path(candidates[-1])
+
+
 def paddle_ocr(file_paths):
     from .ocr.paddle_ocr import paddle_ocr as run_paddle_ocr
 
@@ -91,6 +109,7 @@ def easy_ocr(file_paths):
 
 
 def ocr(file_path):
+    file_path = resolve_image_path(file_path)
     
     engine = RapidOCR(
         params={
@@ -102,11 +121,11 @@ def ocr(file_path):
 
     print(f"\nProcessing: {file_path}")
     img = Image.open(file_path)
-    img = crop_top(img)
+    img = crop_top(img, save_crop=True)
     result = engine(tmp_path)
-    data = extract_data(result.txts, file_path)
+    data = extract_data(result.txts, str(file_path))
 
-    save_extracted_record(data, file_path)
+    save_extracted_record(data, str(file_path))
 
     return data
 

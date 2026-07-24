@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import numpy as np
 import pandas as pd
@@ -24,6 +25,49 @@ CLASS_COLORS = [
     (128, 255, 0),    # lime
     (128, 128, 128),  # gray
 ]
+
+
+def safe_filename(path, default="audiogram.png"):
+    name = re.split(r"[\\/]+", str(path))[-1]
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+    if name in {"", ".", ".."}:
+        return default
+    return name
+
+
+def resolve_image_path(image_filepath):
+    path_text = str(image_filepath).strip().strip('"')
+    candidates = [line.strip().strip('"') for line in path_text.splitlines() if line.strip()]
+    candidates.append(path_text)
+
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
+    for candidate in candidates:
+        path = Path(candidate)
+        if path.is_file():
+            return path
+        if path.is_dir():
+            for child in path.iterdir():
+                if child.is_file() and child.suffix.lower() in image_exts:
+                    return child
+
+    return Path(candidates[-1])
+
+
+def imread(path):
+    data = np.fromfile(str(path), dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError(f"Could not read image: {path}")
+    return img
+
+
+def imwrite(path, img):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    success, data = cv2.imencode(path.suffix or ".png", img)
+    if not success:
+        raise ValueError(f"Could not encode image: {path}")
+    data.tofile(str(path))
 
 
 def detect_and_draw_grid(img):
@@ -100,7 +144,7 @@ def refine_crop(img):
     )
     # Crop
     cropped_audiogram = img[new_y : new_y + new_h, new_x : new_x + new_w]
-    cv2.imwrite("outputs/debug/image_with_rect.png", img_with_rect)
+    imwrite("outputs/debug/image_with_rect.png", img_with_rect)
     
     return cropped_audiogram
 
@@ -145,8 +189,8 @@ def mark_lines(crop_img):
         return groups
     
     # Optional: Save intermediate steps to debug
-    cv2.imwrite("outputs/debug/h_connected.png", h_connected)  # See dashes connected
-    cv2.imwrite("outputs/debug/h_clean.png", horizontal_lines)  # See symbols removed
+    imwrite("outputs/debug/h_connected.png", h_connected)  # See dashes connected
+    imwrite("outputs/debug/h_clean.png", horizontal_lines)  # See symbols removed
 
     final_x = group_indices(x_indices)
     final_y = group_indices(y_indices)
@@ -158,7 +202,7 @@ def mark_lines(crop_img):
     for y in final_y:
         cv2.line(vis_img, (0, y), (w_img, y), (0, 255, 0), 2)  # Green Horizontal
     # Save results
-    cv2.imwrite("outputs/debug/annotated_grid.png", vis_img)
+    imwrite("outputs/debug/annotated_grid.png", vis_img)
 
     return final_x, final_y
 
@@ -167,7 +211,9 @@ DEFAULT_FREQUENCIES = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8
 
 def process_audiogram(image_filepath):
     try:
-        image_filepath = Path(image_filepath)
+        image_filepath = resolve_image_path(image_filepath)
+        image_name = safe_filename(image_filepath)
+        image_stem = Path(image_name).stem
         output_dir = Path("outputs")
         debug_dir = output_dir / "debug"
         csv_dir = output_dir / "csv"
@@ -181,10 +227,10 @@ def process_audiogram(image_filepath):
         temp_crop_path = debug_dir / "cropped_audiogram.png"
         # Output paths for results
         final_annotated_img_path = debug_dir / "annotated_symbols_audiogram.jpg"
-        csv_output_path = csv_dir / f"{image_filepath.stem}.csv"
+        csv_output_path = csv_dir / f"{image_stem}.csv"
 
         # 1. Run OpenCV crop and grid detection
-        img = cv2.imread(str(image_filepath))
+        img = imread(image_filepath)
         # Modified refine_crop to return the image object
         cropped_img = refine_crop(img)
 
@@ -204,13 +250,13 @@ def process_audiogram(image_filepath):
         #     print(f"  {px:4d} px → {freq:5d} Hz")
 
         # Save the cropped image to a temporary file so YOLO can read it
-        cv2.imwrite(str(temp_crop_path), cropped_img)
+        imwrite(temp_crop_path, cropped_img)
 
         # 2. Run YOLO inference on the newly created temporary file
         results = yolo_infer(
             model_path=model_path,
             img=str(temp_crop_path),
-            save_name=image_filepath.name
+            save_name=image_name
         )
 
         # Prepare the cropped image for drawing annotations directly in Python
@@ -262,7 +308,7 @@ def process_audiogram(image_filepath):
                 )
 
         # Save the finally annotated image to a file
-        cv2.imwrite(str(final_annotated_img_path), annotated_img)
+        imwrite(final_annotated_img_path, annotated_img)
 
         # 4. Format the Data for output
         df = pd.DataFrame(rows)

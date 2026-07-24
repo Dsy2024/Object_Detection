@@ -174,6 +174,8 @@ def crop_top(img, save_crop=False):
 
     # Save the cropped area for debugging
     if save_crop:
-        crop.save("outputs/debug/crop_top.png")
+        output_path = "outputs/debug/crop_top.png"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        crop.save(output_path)
 
     return crop
