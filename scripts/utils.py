@@ -164,7 +164,7 @@ def validation(org, new):
     print(f"Serial Accuracy: {correct_serial}/{total_serial} = {serial_acc:.2%}")
 
 
-def crop_top(img, save_crop=True):
+def crop_top(img, save_crop=False):
     crop = img.crop((
         img.width // 4,
         img.height // 6 - 20,

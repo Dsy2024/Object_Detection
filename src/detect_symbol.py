@@ -167,18 +167,24 @@ DEFAULT_FREQUENCIES = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8
 
 def process_audiogram(image_filepath):
     try:
-        os.makedirs("outputs", exist_ok=True)
-        os.makedirs("outputs/csv", exist_ok=True)
-        os.makedirs("outputs/images", exist_ok=True)
+        image_filepath = Path(image_filepath)
+        output_dir = Path("outputs")
+        debug_dir = output_dir / "debug"
+        csv_dir = output_dir / "csv"
+        images_dir = output_dir / "images"
+
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        csv_dir.mkdir(parents=True, exist_ok=True)
+        images_dir.mkdir(parents=True, exist_ok=True)
 
         # A name for the temporarily cropped file that YOLO will read
-        temp_crop_path = "outputs/debug/cropped_audiogram.png"
+        temp_crop_path = debug_dir / "cropped_audiogram.png"
         # Output paths for results
-        final_annotated_img_path = "outputs/debug/annotated_symbols_audiogram.jpg"
-        csv_output_path = "outputs/csv/" + image_filepath.split("/")[-1].rsplit(".", 1)[0] + ".csv"
+        final_annotated_img_path = debug_dir / "annotated_symbols_audiogram.jpg"
+        csv_output_path = csv_dir / f"{image_filepath.stem}.csv"
 
         # 1. Run OpenCV crop and grid detection
-        img = cv2.imread(image_filepath)
+        img = cv2.imread(str(image_filepath))
         # Modified refine_crop to return the image object
         cropped_img = refine_crop(img)
 
@@ -198,13 +204,13 @@ def process_audiogram(image_filepath):
         #     print(f"  {px:4d} px → {freq:5d} Hz")
 
         # Save the cropped image to a temporary file so YOLO can read it
-        cv2.imwrite(temp_crop_path, cropped_img)
+        cv2.imwrite(str(temp_crop_path), cropped_img)
 
         # 2. Run YOLO inference on the newly created temporary file
         results = yolo_infer(
             model_path=model_path,
-            img=temp_crop_path,
-            save_name=image_filepath.split("/")[-1]
+            img=str(temp_crop_path),
+            save_name=image_filepath.name
         )
 
         # Prepare the cropped image for drawing annotations directly in Python
@@ -256,14 +262,14 @@ def process_audiogram(image_filepath):
                 )
 
         # Save the finally annotated image to a file
-        cv2.imwrite(final_annotated_img_path, annotated_img)
+        cv2.imwrite(str(final_annotated_img_path), annotated_img)
 
         # 4. Format the Data for output
         df = pd.DataFrame(rows)
 
         if df.empty:
             return (
-                final_annotated_img_path,
+                str(final_annotated_img_path),
                 pd.DataFrame({"Message": ["No symbols detected."]}),
                 None,
             )
@@ -282,7 +288,7 @@ def process_audiogram(image_filepath):
 
         # Gradio expects: Image file path, Dataframe object, File file path (for download)
         # We are now returning the explicitly annotated image path.
-        return final_annotated_img_path, display_df, csv_output_path
+        return str(final_annotated_img_path), display_df, str(csv_output_path)
 
     except Exception as e:
         return None, pd.DataFrame({"Error": [str(e)]}), None
