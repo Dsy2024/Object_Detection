@@ -1,4 +1,4 @@
-from vllm import LLM, SamplingParams
+#from vllm import LLM, SamplingParams
 from PIL import Image
 from transformers import AutoProcessor
 from ..utils import extract_data, save_extracted_record, crop_top

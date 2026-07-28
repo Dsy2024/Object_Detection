@@ -203,6 +203,10 @@ Setup database
 python -m scripts.db
 ```
 
+The web app initializes the local SQLite database automatically. Normally you only
+need to run `python app.py`; the command above is optional. Database records remain
+in `db.db` after the app is stopped or the computer is offline.
+
 ## Fake Data Generation
 
 Generate fake patient information for OCR evaluation, put your images inside `/data/raw`.
