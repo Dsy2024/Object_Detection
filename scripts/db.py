@@ -47,6 +47,21 @@ def init_db(db_path=DB_PATH):
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hearing_result (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_case_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                frequency_hz INTEGER NOT NULL,
+                db_value REAL NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(patient_case_id, symbol, frequency_hz),
+                FOREIGN KEY (patient_case_id) REFERENCES patient_case(id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
 
 
 def upsert_record(
@@ -83,6 +98,48 @@ def upsert_record(
         )
 
 
+def save_hearing_results(serial_number, results_df, db_path=DB_PATH):
+    """Replace one case's structured PTA results with the latest detection."""
+    if results_df is None or results_df.empty or serial_number == "N/A":
+        return 0
+
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        case = conn.execute(
+            "SELECT id FROM patient_case WHERE serial_number = ?", (serial_number,)
+        ).fetchone()
+        if not case:
+            return 0
+
+        case_id = case[0]
+        rows = []
+        for _, result in results_df.iterrows():
+            symbol = str(result.get("cls", "")).strip()
+            if not symbol:
+                continue
+            for frequency, value in result.items():
+                if frequency == "cls" or value == "" or pd.isna(value):
+                    continue
+                try:
+                    rows.append((case_id, symbol, int(frequency), float(value)))
+                except (TypeError, ValueError):
+                    continue
+
+        if not rows:
+            return 0
+
+        conn.execute("DELETE FROM hearing_result WHERE patient_case_id = ?", (case_id,))
+        conn.executemany(
+            """
+            INSERT INTO hearing_result (
+                patient_case_id, symbol, frequency_hz, db_value
+            ) VALUES (?, ?, ?, ?)
+            """,
+            rows,
+        )
+    return len(rows)
+
+
 def get_database_snapshot(db_path=DB_PATH):
     """Return display-ready patient and case tables for the web UI."""
     init_db(db_path)
@@ -111,18 +168,38 @@ def get_database_snapshot(db_path=DB_PATH):
             """,
             conn,
         )
+        hearing_results = pd.read_sql_query(
+            """
+            SELECT
+                hr.id AS '結果 ID',
+                pc.serial_number AS '病例序號',
+                p.patient_name AS '病患姓名',
+                hr.symbol AS '符號',
+                hr.frequency_hz AS '頻率 (Hz)',
+                hr.db_value AS '聽力閾值 (dB)',
+                hr.created_at AS '建立時間'
+            FROM hearing_result AS hr
+            JOIN patient_case AS pc ON pc.id = hr.patient_case_id
+            JOIN patient AS p ON p.id = pc.patient_id
+            ORDER BY pc.id DESC, hr.symbol, hr.frequency_hz
+            """,
+            conn,
+        )
     status = (
         f"資料庫位置：{Path(db_path).resolve()}\n\n"
-        f"病患：{len(patients)} 筆｜病例：{len(cases)} 筆"
+        f"病患：{len(patients)} 筆｜病例：{len(cases)} 筆｜"
+        f"聽力結果：{len(hearing_results)} 筆"
     )
-    return patients, cases, status
+    return patients, cases, hearing_results, status
 
 
 def clear_tables(db_path=DB_PATH):
     init_db(db_path)
     with _connect(db_path) as conn:
+        conn.execute("DELETE FROM hearing_result")
         conn.execute("DELETE FROM patient_case")
         conn.execute("DELETE FROM patient")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name='hearing_result'")
         conn.execute("DELETE FROM sqlite_sequence WHERE name='patient_case'")
         conn.execute("DELETE FROM sqlite_sequence WHERE name='patient'")
 

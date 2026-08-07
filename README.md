@@ -197,6 +197,8 @@ Tables
 
 - patient_case
 
+- hearing_result (PTA symbol, frequency, and dB value)
+
 Setup database
 
 ```bash

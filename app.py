@@ -1,7 +1,7 @@
 import gradio as gr
 
 from scripts.add_fake_data import web_results
-from scripts.db import DB_PATH, get_database_snapshot, init_db
+from scripts.db import DB_PATH, get_database_snapshot, init_db, save_hearing_results
 from scripts.validate_ocr import ocr
 from src.detect_symbol import process_audiogram
 
@@ -17,6 +17,13 @@ def process_all(image_path):
 
     output_image, df, csv = process_audiogram(image_path)
     ocr_result = ocr(image_path)
+    saved_count = save_hearing_results(ocr_result["serial"], df)
+    if saved_count:
+        save_status = f"已將 {saved_count} 筆聽力結果存入病例 {ocr_result['serial']}。"
+    elif ocr_result["serial"] == "N/A":
+        save_status = "未辨識到有效病例序號，因此沒有寫入聽力結果。"
+    else:
+        save_status = "沒有可儲存的聽力結果；資料庫中的既有結果未被刪除。"
     return (
         output_image,
         df,
@@ -24,6 +31,7 @@ def process_all(image_path):
         ocr_result["doctor"],
         ocr_result["patient"],
         ocr_result["serial"],
+        save_status,
     )
 
 
@@ -43,11 +51,20 @@ with gr.Blocks(title="Audiogram Digitizer") as demo:
                 doctor = gr.Textbox(label="醫師")
                 patient = gr.Textbox(label="病患")
                 serial = gr.Textbox(label="序號")
+                db_save_status = gr.Textbox(label="資料庫儲存狀態", interactive=False)
 
         submit_btn.click(
             fn=process_all,
             inputs=input_image,
-            outputs=[output_image, output_dataframe, output_csv, doctor, patient, serial],
+            outputs=[
+                output_image,
+                output_dataframe,
+                output_csv,
+                doctor,
+                patient,
+                serial,
+                db_save_status,
+            ],
         )
 
     with gr.Tab("資料庫") as database_tab:
@@ -55,9 +72,12 @@ with gr.Blocks(title="Audiogram Digitizer") as demo:
         db_status = gr.Markdown()
         refresh_db = gr.Button("重新整理資料庫", variant="primary")
         cases_table = gr.Dataframe(label="病例（含病患資料）", interactive=False)
+        hearing_results_table = gr.Dataframe(
+            label="PTA／YOLO 聽力辨識結果", interactive=False
+        )
         patients_table = gr.Dataframe(label="病患", interactive=False)
 
-        db_outputs = [patients_table, cases_table, db_status]
+        db_outputs = [patients_table, cases_table, hearing_results_table, db_status]
         refresh_db.click(fn=get_database_snapshot, outputs=db_outputs)
         database_tab.select(fn=get_database_snapshot, outputs=db_outputs)
 
