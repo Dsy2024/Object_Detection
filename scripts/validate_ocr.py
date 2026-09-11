@@ -1,12 +1,17 @@
 
 from PIL import Image
 
-import easyocr
 import time
 import pandas as pd
 from pathlib import Path
-from rapidocr import LangDet, RapidOCR
-from .utils import crop_top, extract_data, save_extracted_record, validation
+from .utils import (
+    crop_top,
+    extract_data,
+    pil_to_ocr_image,
+    prepare_input_image,
+    save_extracted_record,
+    validation,
+)
 
 
 GT_CSV = "outputs/ocr/fake_ground_truth.csv"
@@ -14,43 +19,35 @@ DATASET_DIR = Path("scripts/ocr/TC-STR")
 LABEL_FILE = DATASET_DIR / "test_labels.txt"
 
 
-def resolve_image_path(image_filepath):
-    path_text = str(image_filepath).strip().strip('"')
-    candidates = [line.strip().strip('"') for line in path_text.splitlines() if line.strip()]
-    candidates.append(path_text)
+def _as_file_list(file_paths):
+    if isinstance(file_paths, (str, Path)):
+        return [file_paths]
 
-    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
-    for candidate in candidates:
-        path = Path(candidate)
-        if path.is_file():
-            return path
-        if path.is_dir():
-            for child in path.iterdir():
-                if child.is_file() and child.suffix.lower() in image_exts:
-                    return child
-
-    return Path(candidates[-1])
+    return list(file_paths)
 
 
 def paddle_ocr(file_paths):
     from .ocr.paddle_ocr import paddle_ocr as run_paddle_ocr
 
-    return run_paddle_ocr(file_paths)
+    return run_paddle_ocr(_as_file_list(file_paths))
 
 
 def paddle_ocrvl(file_paths):
     from .ocr.paddle_ocrvl import paddle_ocrvl as run_paddle_ocrvl
 
-    return run_paddle_ocrvl(file_paths)
+    return run_paddle_ocrvl(_as_file_list(file_paths))
 
 
 def hunyuanocr(file_paths):
     from .ocr.hunyuan_ocr import hunyuanocr as run_hunyuanocr
 
-    return run_hunyuanocr(file_paths)
+    return run_hunyuanocr(_as_file_list(file_paths))
 
 
 def rapidocr(file_paths):
+    file_paths = _as_file_list(file_paths)
+
+    from rapidocr import LangDet, RapidOCR
     engine = RapidOCR(
         params={
             "Det.lang_type": LangDet.CH,
@@ -58,17 +55,16 @@ def rapidocr(file_paths):
     )
 
     data_list = []
-    tmp_path = "outputs/debug/crop_top.png"
 
     for file_path in file_paths[:30]:
+        file_path = prepare_input_image(file_path)
         print(f"\nProcessing: {file_path}")
         img = Image.open(file_path)
         img = crop_top(img)
-        result = engine(tmp_path)
+        result = engine(pil_to_ocr_image(img))
         data = extract_data(result.txts, file_path)
 
         data_list.append(data)
-        save_extracted_record(data, file_path)
 
     # for file_path in file_paths:
     #     print(f"\nProcessing: {file_path}")
@@ -83,21 +79,23 @@ def rapidocr(file_paths):
 
 
 def easy_ocr(file_paths):
+    file_paths = _as_file_list(file_paths)
+
+    import easyocr
     # reader = easyocr.Reader(['en'], gpu=True)
     reader = easyocr.Reader(['ch_tra', 'en'], gpu=True)
 
     data_list = []
-    tmp_path = "outputs/debug/crop_top.png"
 
     for file_path in file_paths[:30]:
+        file_path = prepare_input_image(file_path)
         print(f"\nProcessing: {file_path}")
         img = Image.open(file_path)
         img = crop_top(img)
-        results = reader.readtext(tmp_path, detail=0)
+        results = reader.readtext(pil_to_ocr_image(img), detail=0)
         data = extract_data(results, file_path)
 
         data_list.append(data)
-        save_extracted_record(data, file_path)
 
     # for file_path in file_paths:
     #     print(f"\nProcessing: {file_path}")
@@ -108,24 +106,54 @@ def easy_ocr(file_paths):
     return data_list
 
 
-def ocr(file_path):
-    file_path = resolve_image_path(file_path)
-    
-    engine = RapidOCR(
-        params={
-            "Det.lang_type": LangDet.CH,
+OCR_MODELS = {
+    "rapidocr": rapidocr,
+    "easyocr": easy_ocr,
+    "paddleocr": paddle_ocr,
+    "paddleocrvl": paddle_ocrvl,
+    "hunyuanocr": hunyuanocr,
+}
+
+
+OCR_MODEL_LABELS = {
+    "RapidOCR": "rapidocr",
+    "EasyOCR": "easyocr",
+    "PaddleOCR": "paddleocr",
+    "PaddleOCR-VL": "paddleocrvl",
+    "HunyuanOCR": "hunyuanocr",
+}
+
+
+def normalize_ocr_model(model_name):
+    model_name = (model_name or "hunyuanocr").strip()
+    model_key = OCR_MODEL_LABELS.get(model_name, model_name).lower().replace("_", "").replace("-", "")
+
+    if model_key not in OCR_MODELS:
+        choices = ", ".join(OCR_MODELS)
+        raise ValueError(f"Unknown OCR model '{model_name}'. Choose one of: {choices}")
+
+    return model_key
+
+
+def ocr(file_path, model_name="hunyuanocr", audiogram_df=None, save_record=False):
+    model_key = normalize_ocr_model(model_name)
+    data_list = OCR_MODELS[model_key]([file_path])
+
+    if not data_list:
+        data = {
+            "path": file_path,
+            "patient": "N/A",
+            "test_date": "N/A",
+            "serial": "N/A",
+            "gender": "N/A",
+            "birthdate": "N/A",
+            "doctor": "N/A",
         }
-    )
+    else:
+        data = data_list[0]
 
-    tmp_path = "outputs/debug/crop_top.png"
-
-    print(f"\nProcessing: {file_path}")
-    img = Image.open(file_path)
-    img = crop_top(img, save_crop=True)
-    result = engine(tmp_path)
-    data = extract_data(result.txts, str(file_path))
-
-    save_extracted_record(data, str(file_path))
+    if save_record:
+        save_extracted_record(data, file_path, audiogram_df=audiogram_df)
 
     return data
 
@@ -137,10 +165,14 @@ def main():
     fake_data = gt_df.to_dict("records")
 
     # extracted_data = easy_ocr(fake_file_paths)
-    extracted_data = rapidocr(fake_file_paths)
+    # extracted_data = rapidocr(fake_file_paths)
     # extracted_data = paddle_ocr(fake_file_paths)
     # extracted_data = paddle_ocrvl(fake_file_paths)
-    # extracted_data = hunyuanocr(fake_file_paths)
+    extracted_data = hunyuanocr(fake_file_paths)
+
+    blank_df = pd.DataFrame()
+    for data in extracted_data:
+        save_extracted_record(data, data.get("path"), audiogram_df=blank_df)
 
     validation(fake_data, extracted_data)
 

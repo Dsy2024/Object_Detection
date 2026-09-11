@@ -1,10 +1,10 @@
 import os
-import re
 import cv2
 import numpy as np
 import pandas as pd
 from .yolo import yolo_infer
 from pathlib import Path
+from scripts.utils import prepare_input_image, safe_filename
 
 
 # Paths
@@ -27,30 +27,8 @@ CLASS_COLORS = [
 ]
 
 
-def safe_filename(path, default="audiogram.png"):
-    name = re.split(r"[\\/]+", str(path))[-1]
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
-    if name in {"", ".", ".."}:
-        return default
-    return name
-
-
 def resolve_image_path(image_filepath):
-    path_text = str(image_filepath).strip().strip('"')
-    candidates = [line.strip().strip('"') for line in path_text.splitlines() if line.strip()]
-    candidates.append(path_text)
-
-    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
-    for candidate in candidates:
-        path = Path(candidate)
-        if path.is_file():
-            return path
-        if path.is_dir():
-            for child in path.iterdir():
-                if child.is_file() and child.suffix.lower() in image_exts:
-                    return child
-
-    return Path(candidates[-1])
+    return prepare_input_image(image_filepath)
 
 
 def imread(path):
@@ -209,6 +187,50 @@ def mark_lines(crop_img):
 
 DEFAULT_FREQUENCIES = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 12000]
 
+
+def remove_border_lines(lines, max_position, border_margin=3):
+    return [
+        line
+        for line in lines
+        if border_margin < line < max_position - border_margin
+    ]
+
+
+def build_axis_candidates(lines, values, include_midpoints=False):
+    candidates = [
+        (float(line), value)
+        for line, value in zip(lines, values)
+    ]
+
+    if include_midpoints:
+        for index in range(len(candidates) - 1):
+            line, value = candidates[index]
+            next_line, next_value = candidates[index + 1]
+            candidates.append(((line + next_line) / 2, (value + next_value) / 2))
+
+    return candidates
+
+
+def nearest_axis_value(center, candidates):
+    if not candidates:
+        raise ValueError("No axis candidates available.")
+
+    _, value = min(candidates, key=lambda item: abs(item[0] - center))
+    return value
+
+
+def build_frequency_candidates(x_lines):
+    return build_axis_candidates(x_lines, DEFAULT_FREQUENCIES)
+
+
+def build_db_candidates(y_lines):
+    if not y_lines:
+        return []
+
+    db_levels = list(range(-10, -10 + len(y_lines) * 10, 10))
+    return build_axis_candidates(y_lines, db_levels, include_midpoints=True)
+
+
 def process_audiogram(image_filepath):
     try:
         image_filepath = resolve_image_path(image_filepath)
@@ -237,13 +259,15 @@ def process_audiogram(image_filepath):
         # Modified mark_lines to take an image object
         final_x, final_y = mark_lines(cropped_img)
 
-        if len(final_x) < 2 or len(final_y) < 2:
+        h_img, w_img = cropped_img.shape[:2]
+        final_x = remove_border_lines(final_x, w_img)
+        final_y = remove_border_lines(final_y, h_img)
+
+        if len(final_x) < 1 or len(final_y) < 1:
             raise ValueError("Could not detect enough grid lines.")
 
-        final_x = final_x[1:-1]
-        final_y = final_y[1:-1]
-        px_to_hz = dict(zip(map(int, final_x), map(int, DEFAULT_FREQUENCIES)))
-        y_max = final_y[-1]
+        frequency_candidates = build_frequency_candidates(final_x)
+        db_candidates = build_db_candidates(final_y)
 
         # print("\nX-axis mapping (pixels → frequency):")
         # for px, freq in zip(final_x, DEFAULT_FREQUENCIES):
@@ -296,13 +320,8 @@ def process_audiogram(image_filepath):
                 # Extract data for CSV
                 x_center = b.xywh[0, 0].item()
                 y_center = b.xywh[0, 1].item()
-                # find nearest frequency column
-                k = min(px_to_hz.keys(), key=lambda p: abs(p - x_center))
-                nearest_hz = px_to_hz[k]
-                # Calculate dB
-                ratio = y_center / y_max
-                db_level = -20 + ratio * 140
-                db_level = round(db_level)
+                nearest_hz = nearest_axis_value(x_center, frequency_candidates)
+                db_level = int(nearest_axis_value(y_center, db_candidates))
                 rows.append(
                     {"cls": CLASS_NAMES[cls], "hz": nearest_hz, "db": db_level, "conf": conf}
                 )
@@ -320,11 +339,15 @@ def process_audiogram(image_filepath):
                 None,
             )
 
+        df = df.sort_values("conf", ascending=False).drop_duplicates(
+            subset=["cls", "hz"],
+            keep="first",
+        )
         wide = df.pivot_table(
             index="cls",
             columns="hz",
             values="db",
-            aggfunc="mean"
+            aggfunc="first"
         )
         wide = wide.reindex(columns=DEFAULT_FREQUENCIES).sort_index()
 

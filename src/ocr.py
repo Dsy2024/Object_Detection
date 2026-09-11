@@ -2,7 +2,13 @@ import os
 import easyocr
 from rapidocr import LangDet, RapidOCR
 
-from scripts.utils import add_fake_data, extract_data, save_extracted_record, validation
+from scripts.utils import (
+    add_fake_data,
+    extract_data,
+    prepare_input_image,
+    save_extracted_record,
+    validation,
+)
 
 
 IMAGE_PATH = "data/raw/"
@@ -30,6 +36,7 @@ def ocr(file_paths):
     data_list = []
 
     for file_path in file_paths:
+        file_path = prepare_input_image(file_path)
         print(f"\nProcessing: {file_path}")
         result = engine(file_path)
         data = extract_data(result.txts, file_path)

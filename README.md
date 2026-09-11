@@ -26,6 +26,8 @@ An automatic audiogram analysis system that detects audiogram symbols, extracts 
 
 🌐 Gradio web interface
 
+🖼️ Image preview and PDF upload support
+
 ## Project Structure
 
 ```
@@ -175,7 +177,7 @@ python src/detect_symbol.py
 
 # OCR
 
-Supported OCR engines, setup the below 3 larger models by yourself if you want to use them.
+Supported OCR engines. In the Gradio app, choose the OCR model from the dropdown before processing.
 
 - EasyOCR
 
@@ -185,17 +187,38 @@ Supported OCR engines, setup the below 3 larger models by yourself if you want t
 
 - [PaddleOCR-VL](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL.html)
 
-- [HunyuanOCR](https://github.com/Tencent-Hunyuan/HunyuanOCR#-quick-start-with-vllm--recommended)
+- [HunyuanOCR](https://github.com/Tencent-Hunyuan/HunyuanOCR)
+
+Image uploads can be PNG, JPG, JPEG, BMP, WEBP, TIF, or TIFF. PDF uploads are also supported; only the first page is converted and processed.
+
+Extracted OCR fields:
+
+- Doctor
+- Patient
+- Serial Number
+- Gender
+- Birthdate
+- Test Date
 
 ## Database
 
-Patient information is stored in SQLite.
+Patient information and audiogram detection results are stored in SQLite.
 
 Tables
 
 - patient
+  - patient_name
+  - gender
+  - birthdate
 
 - patient_case
+  - serial_number
+  - doctor_name
+  - test_date
+  - audiogram
+  - audiogram_df
+
+`audiogram_df` stores the dataframe returned from `process_audiogram()` as JSON.
 
 Setup database
 
@@ -219,9 +242,23 @@ Generated fields
 
 - Serial Number
 
+- Gender
+
+- Birthdate
+
+- Test Date
+
 ## Validation
 
-Evaluate OCR performance, change the model in line 120-124 in `/scripts/validate_ocr.py`.
+Evaluate OCR performance by choosing the backend in `/scripts/validate_ocr.py`.
+
+Available model keys:
+
+- rapidocr
+- easyocr
+- paddleocr
+- paddleocrvl
+- hunyuanocr
 
 ```bash
 python -m scripts.validate_ocr

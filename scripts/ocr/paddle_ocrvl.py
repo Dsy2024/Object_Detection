@@ -1,6 +1,12 @@
 from pathlib import Path
 from PIL import Image
-from ..utils import crop_top, extract_data, save_extracted_record
+from ..utils import (
+    crop_top,
+    extract_data,
+    pil_to_ocr_image,
+    prepare_input_image,
+    save_crop_image,
+)
 
 
 pipeline = None
@@ -40,16 +46,22 @@ def init_pipeline():
 def paddle_ocrvl(file_paths):
     init_pipeline()
     data_list = []
-    tmp_path = "outputs/debug/crop_top.png"
 
     for file_path in file_paths[:30]:
+        file_path = prepare_input_image(file_path)
         print(f"\nProcessing: {file_path}")
         img = Image.open(file_path)
         img = crop_top(img)
-        output = pipeline.predict(
-            input=tmp_path,
-            prompt_label="ocr",
-        )
+        try:
+            output = pipeline.predict(
+                input=pil_to_ocr_image(img),
+                prompt_label="ocr",
+            )
+        except (TypeError, ValueError, AssertionError):
+            output = pipeline.predict(
+                input=save_crop_image(img),
+                prompt_label="ocr",
+            )
 
         texts = []
         for block in output[0]["parsing_res_list"]:
@@ -58,7 +70,6 @@ def paddle_ocrvl(file_paths):
 
         data = extract_data(texts, file_path)
         data_list.append(data)
-        save_extracted_record(data, file_path)
         
     # for file_path in file_paths:
     #     print(f"\nProcessing: {file_path}")

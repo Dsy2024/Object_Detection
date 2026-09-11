@@ -1,5 +1,11 @@
 from PIL import Image
-from ..utils import crop_top, extract_data, save_extracted_record  
+from ..utils import (
+    crop_top,
+    extract_data,
+    pil_to_ocr_image,
+    prepare_input_image,
+    save_crop_image,
+)
 
 
 ocr = None
@@ -35,11 +41,11 @@ def _extract_texts(result):
     return texts
 
 
-def _run_ocr(image_path):
+def _run_ocr(image_input):
     if hasattr(ocr, "predict"):
-        return ocr.predict(image_path)
+        return ocr.predict(image_input)
 
-    return ocr.ocr(image_path, cls=False)
+    return ocr.ocr(image_input, cls=False)
 
 
 def init_ocr():
@@ -56,6 +62,7 @@ def init_ocr():
             ) from exc
 
         ocr = PaddleOCR(
+            # lang="chinese_cht",
             use_doc_orientation_classify=False, # Disables document orientation classification model via this parameter
             use_doc_unwarping=False, # Disables text image rectification model via this parameter
             use_textline_orientation=False, # Disables text line orientation classification model via this parameter
@@ -66,18 +73,20 @@ def init_ocr():
 def paddle_ocr(file_paths):
     init_ocr()
     data_list = []
-    tmp_path = "outputs/debug/crop_top.png"
 
-    for file_path in file_paths[:30]:
+    for file_path in file_paths:
+        file_path = prepare_input_image(file_path)
         print(f"\nProcessing: {file_path}")
         img = Image.open(file_path)
         img = crop_top(img)
-        result = _run_ocr(tmp_path)
+        try:
+            result = _run_ocr(pil_to_ocr_image(img))
+        except (TypeError, ValueError, AssertionError):
+            result = _run_ocr(save_crop_image(img))
         texts = _extract_texts(result)
         text = "\n".join(texts)
         data = extract_data(text.splitlines(), file_path)
         data_list.append(data)
-        save_extracted_record(data, file_path)
 
     # for file_path in file_paths:
     #     print(f"\nProcessing: {file_path}")
