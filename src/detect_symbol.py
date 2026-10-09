@@ -26,6 +26,18 @@ CLASS_COLORS = [
     (128, 128, 128),  # gray
 ]
 
+NEW_CLASS_NAMES = ["O", "X", "[", "]"]
+CLASS_MAPPING = {
+    0: 2,  # < → [
+    1: 3,  # > → ]
+    2: 0,  # O → O
+    3: 1,  # X → X
+    4: 2,  # [ → [
+    5: 3,  # ] → ]
+    6: 1,  # □ → X
+    7: 0,  # △ → O
+}
+
 
 def resolve_image_path(image_filepath):
     return prepare_input_image(image_filepath)
@@ -231,6 +243,44 @@ def build_db_candidates(y_lines):
     return build_axis_candidates(y_lines, db_levels, include_midpoints=True)
 
 
+def correct_bracket_positions(detections, max_dx=35, max_dy=15):
+    """
+    detections: list[dict]
+    included cls, x, y
+    cls: 0=O, 1=X, 2=[, 3=]
+    """
+
+    anchors = [
+        d for d in detections
+        if d["cls"] in (0, 1)  # O, X
+    ]
+
+    for d in detections:
+        d["x_corrected"] = d["x"]
+
+        if d["cls"] not in (2, 3):  # [, ]
+            continue
+
+        candidates = [
+            a for a in anchors
+            if abs(a["x"] - d["x"]) <= max_dx
+            and abs(a["y"] - d["y"]) <= max_dy
+        ]
+
+        if candidates:
+            nearest = min(
+                candidates,
+                key=lambda a: (
+                    abs(a["y"] - d["y"]),
+                    abs(a["x"] - d["x"]),
+                )
+            )
+
+            d["x_corrected"] = nearest["x"]
+
+    return detections
+
+
 def process_audiogram(image_filepath):
     try:
         image_filepath = resolve_image_path(image_filepath)
@@ -288,12 +338,15 @@ def process_audiogram(image_filepath):
         annotated_img = cropped_img.copy()
 
         rows = []
+        detections = []
+
         # 3. Process YOLO results, draw bounding boxes, and extract data
         for r in results:
             for b in r.boxes:
                 # Get xyxy coordinates for rectangle drawing
                 x1, y1, x2, y2 = b.xyxy[0].tolist()
-                cls = int(b.cls.item())
+                # cls = int(b.cls.item())
+                cls = CLASS_MAPPING[int(b.cls.item())]
                 conf = float(b.conf.item()) if hasattr(b, "conf") else np.nan
 
                 # Select a color and name for the class, with a safeguard for unknown classes
@@ -320,11 +373,31 @@ def process_audiogram(image_filepath):
                 # Extract data for CSV
                 x_center = b.xywh[0, 0].item()
                 y_center = b.xywh[0, 1].item()
-                nearest_hz = nearest_axis_value(x_center, frequency_candidates)
-                db_level = int(nearest_axis_value(y_center, db_candidates))
-                rows.append(
-                    {"cls": CLASS_NAMES[cls], "hz": nearest_hz, "db": db_level, "conf": conf}
-                )
+                detections.append({
+                        "cls": cls,
+                        "x": x_center,
+                        "y": y_center,
+                        "conf": conf,
+                    })
+
+        # Correct bracket positions based on nearest O/X symbols
+        detections = correct_bracket_positions(
+            detections,
+            max_dx=35,
+            max_dy=15,
+        )
+
+        for d in detections:
+            cls = d["cls"]
+
+            x_center = d["x_corrected"]
+            y_center = d["y"]
+
+            nearest_hz = nearest_axis_value(x_center, frequency_candidates)
+            db_level = int(nearest_axis_value(y_center, db_candidates))
+            rows.append(
+                {"cls": NEW_CLASS_NAMES[cls], "hz": nearest_hz, "db": db_level, "conf": d["conf"]}
+            )
 
         # Save the finally annotated image to a file
         imwrite(final_annotated_img_path, annotated_img)

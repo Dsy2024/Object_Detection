@@ -28,6 +28,8 @@ An automatic audiogram analysis system that detects audiogram symbols, extracts 
 
 🖼️ Image preview and PDF upload support
 
+Batch processing and patient examination history with image and data previews.
+
 ## Project Structure
 
 ```
@@ -59,8 +61,6 @@ AutoAudiogram/
 Install dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```bash
-uv venv
-source .venv/bin/activate
 uv sync
 ```
 
@@ -68,11 +68,21 @@ uv sync
 
 Run the code below and open it on [http://localhost:7860](http://localhost:7860).
 
-```py
+```bash
 python app.py
 ```
 
+The web interface has three tabs:
+
+- **Audiogram**: upload and preview one image or PDF, select an OCR model, and view detected symbols, dB values, patient information, and a downloadable CSV.
+- **Batch Processing**: upload multiple images or PDFs and process them sequentially with one OCR model. The results table shows each file's status, extracted information, and any raised error. PDF processing uses only the first page.
+- **Patient Search**: filter examination history by patient name, gender, or birthdate, then select a case to view its saved audiogram image and detection dataframe. Names support partial matches; gender and birthdate require exact matches. Images are displayed only while their saved files remain available.
+
 # Object Detection
+
+Detection results group symbols into four output classes: `O`, `X`, `[`, and `]`. The mapping is `<` and `[` to `[`, `>` and `]` to `]`, square to `X`, and triangle to `O`.
+
+Bracket frequency positions are aligned to a nearby `O` or `X` within 35 horizontal and 15 vertical pixels, preferring the smallest vertical distance, then horizontal distance. dB values use the nearest horizontal grid line or midpoint, starting at -10 dB and increasing in 5 dB steps.
 
 ## [YOLO26](https://docs.ultralytics.com/models/yolo26/) Usage Example
 
@@ -220,11 +230,15 @@ Tables
 
 `audiogram_df` stores the dataframe returned from `process_audiogram()` as JSON.
 
-Setup database
+Patients are matched by name, birthdate, and gender together. Cases are inserted or updated by serial number. The `audiogram` field stores the input image path, or the rendered first-page image for a PDF; image data is not stored in SQLite.
+
+Initialize or migrate the database without clearing existing records:
 
 ```bash
-python -m scripts.db
+python -c "from scripts.db import init_db; init_db()"
 ```
+
+Currently, `python -m scripts.db` initializes the database and then deletes all patient and case records.
 
 ## Fake Data Generation
 

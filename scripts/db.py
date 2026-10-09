@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import pandas as pd
+from pathlib import Path
 
 
 DB_PATH = "db.db"
@@ -169,8 +170,7 @@ def search_patient_cases(
             p.birthdate,
             pc.serial_number,
             pc.doctor_name,
-            pc.test_date,
-            pc.audiogram
+            pc.test_date
         FROM patient p
         LEFT JOIN patient_case pc
             ON p.id = pc.patient_id
@@ -242,6 +242,28 @@ def load_audiogram_df(case_id, db_path=DB_PATH):
     return df
 
 
+def load_audiogram_path(case_id, db_path=DB_PATH):
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT audiogram
+            FROM patient_case
+            WHERE id = ?
+            """,
+            (int(case_id),),
+        ).fetchone()
+
+    if not row or not row[0]:
+        return None
+
+    path = Path(row[0])
+
+    if not path.is_file():
+        return None
+
+    return str(path.resolve())
+
+
 if __name__ == "__main__":
     init_db()
-    # clear_tables()
+    clear_tables()
