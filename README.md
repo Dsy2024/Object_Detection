@@ -53,6 +53,12 @@ AutoAudiogram/
 |
 ├── src/
 │
+├── synthetic_dataset/
+│   ├── generate.py
+│   ├── symbols/
+│   ├── images/
+│   └── labels/
+│
 └── README.md
 ```
 
@@ -69,7 +75,7 @@ uv sync
 Run the code below and open it on [http://localhost:7860](http://localhost:7860).
 
 ```bash
-python app.py
+uv run python app.py
 ```
 
 The web interface has three tabs:
@@ -81,6 +87,8 @@ The web interface has three tabs:
 # Object Detection
 
 Detection results group symbols into four output classes: `O`, `X`, `[`, and `]`. The mapping is `<` and `[` to `[`, `>` and `]` to `]`, square to `X`, and triangle to `O`.
+
+The detector uses 16 classes: eight symbol types, each with a normal and an `-os` variant. Both variants map to the same output class; `-os` values retain an `(os)` suffix in the dataframe, CSV, and saved database results, for example `60(os)`. When multiple detections map to the same class and frequency, the highest-confidence detection is retained.
 
 Bracket frequency positions are aligned to a nearby `O` or `X` within 35 horizontal and 15 vertical pixels, preferring the smallest vertical distance, then horizontal distance. dB values use the nearest horizontal grid line or midpoint, starting at -10 dB and increasing in 5 dB steps.
 
@@ -139,7 +147,7 @@ label-studio start
 Organize the data as follows:
 
 ```
-Data/
+data/
 │
 ├── images/
 │   ├── train/
@@ -154,36 +162,66 @@ Data/
         └── 2.txt
 ```
 
-Prepare a yaml file like this:
+The project's `config.yaml` uses these paths and class IDs. Keep the same class ordering in YOLO labels, symbol sprites, and model weights:
 
-```
+```yaml
 # Dataset root directory
-path: ../data
+path: data
 
 # Relative paths to image directories
 train: images/train
 val: images/val
 test:  # optional
 
-# Class names dictionary
+nc: 16
 names:
-  0: person
-  1: bus
+  0: "<"
+  1: "<-os"
+  2: ">"
+  3: ">-os"
+  4: "O"
+  5: "O-os"
+  6: "X"
+  7: "X-os"
+  8: "["
+  9: "[-os"
+  10: "]"
+  11: "]-os"
+  12: "□"
+  13: "□-os"
+  14: "△"
+  15: "△-os"
 ```
+
+## Synthetic Detection Data
+
+Place the 16 RGBA symbol sprites in `synthetic_dataset/symbols/`, named `0.png` through `15.png` using the class IDs above.
+
+```bash
+uv run python synthetic_dataset/generate.py --count 120 --min-symbols 8 --max-symbols 16 --os-ratio 0.9
+```
+
+The generator draws symbols on randomized grids, including one red/blue overlapping pair per generated image. Defaults are 590 by 630 pixels and seed 42. Both symbol-count limits must be at least two, minimum must not exceed maximum, and `--os-ratio` must be between 0 and 1.
+
+Images and YOLO labels are saved as matching `synth_00000.png` and `synth_00000.txt` files in `synthetic_dataset/images/` and `synthetic_dataset/labels/`. Use `--out PATH` to change the output root. A labeled preview of the first image is saved at `synthetic_dataset/preview_labeled.png`.
+
+Split generated image/label pairs into the `data/images/{train,val}` and `data/labels/{train,val}` directories before training; the generator does not create a train/validation split.
 
 ## Running
 
-Train YOLO model
+Train from `models/yolo26l.pt` using `config.yaml` for 80 epochs at image size 640. Weights are saved in `models/yolo26l_detect/weights/`.
 
 ```bash
-python src/yolo.py
+uv run python -m src.yolo
 ```
 
 Run inference
 
 ```bash
-python src/detect_symbol.py
+uv run python -m src.detect_symbol
 ```
+
+The inference command uses `input_image_path` and `model_path` configured in `src/detect_symbol.py`.
 
 # OCR
 

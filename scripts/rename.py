@@ -3,7 +3,7 @@ import re
 import uuid
 
 
-def rename_files(folder, dry_run=False, exts=(".jpg", ".jpeg", ".txt")):
+def rename_files(folder, dry_run=False, exts=(".jpg", ".jpeg", ".txt", ".png")):
     """
     folder   : target folder
     dry_run  : True -> 只預覽，不真的改名
@@ -38,7 +38,7 @@ def rename_files(folder, dry_run=False, exts=(".jpg", ".jpeg", ".txt")):
             p.rename(tmp)
         temps.append((tmp, p.suffix.lower()))
 
-    for i, (tmp, suffix) in enumerate(temps, start=1):
+    for i, (tmp, suffix) in enumerate(temps, start=221):
         target = tmp.with_name(f"{i}{suffix}")
         if dry_run:
             print(f"[DRY] {tmp.name} -> {target.name}")
@@ -49,6 +49,6 @@ def rename_files(folder, dry_run=False, exts=(".jpg", ".jpeg", ".txt")):
 
 
 if __name__ == "__main__":
-    # rename_files("data/images/")
-    # rename_files("data/labels/")
-    rename_files("images/")
+    rename_files("data/images/val/")
+    rename_files("data/labels/val/")
+    # rename_files("images/")

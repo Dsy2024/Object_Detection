@@ -11,10 +11,16 @@ from scripts.utils import prepare_input_image, safe_filename
 # model_path = "models/yolo11n_detect_OX/weights/best.pt"
 model_path = "models/yolo26l_detect/weights/best.pt"
 # Input image path
-input_image_path = "data/raw/144.jpg"
+input_image_path = "data/raw/29.jpg"
 
 # CLASS_NAMES = ["O", "X"]  
-CLASS_NAMES = ["<", ">", "O", "X", "[", "]", "□", "△"]
+# CLASS_NAMES = ["<", ">", "O", "X", "[", "]", "□", "△"]
+CLASS_NAMES = [
+    "<", "<-os", ">", ">-os",
+    "O", "O-os", "X", "X-os",
+    "[", "[-os", "]", "]-os",
+    "□", "□-os", "△", "△-os",
+]
 CLASS_COLORS = [
     (0, 165, 255),    # orange
     (0, 255, 0),      # green
@@ -28,14 +34,14 @@ CLASS_COLORS = [
 
 NEW_CLASS_NAMES = ["O", "X", "[", "]"]
 CLASS_MAPPING = {
-    0: 2,  # < → [
-    1: 3,  # > → ]
-    2: 0,  # O → O
-    3: 1,  # X → X
-    4: 2,  # [ → [
-    5: 3,  # ] → ]
-    6: 1,  # □ → X
-    7: 0,  # △ → O
+    0: 2, 1: 2,     # < → [
+    2: 3, 3: 3,     # > → ]
+    4: 0, 5: 0,     # O → O
+    6: 1, 7: 1,     # X → X
+    8: 2, 9: 2,     # [ → [
+    10: 3, 11: 3,   # ] → ]
+    12: 1, 13: 1,   # □ → X
+    14: 0, 15: 0,   # △ → O
 }
 
 
@@ -243,37 +249,49 @@ def build_db_candidates(y_lines):
     return build_axis_candidates(y_lines, db_levels, include_midpoints=True)
 
 
-def correct_bracket_positions(detections, max_dx=35, max_dy=15):
+def correct_bracket_positions(detections, db_candidates, max_dx=35):
     """
-    detections: list[dict]
-    included cls, x, y
+    Correct bracket X positions using nearby O/X symbols.
+
+    Conditions:
+    1. Same mapped dB level.
+    2. Distance within max_dx.
+    3. [ only moves toward larger X.
+    4. ] only moves toward smaller X.
+
     cls: 0=O, 1=X, 2=[, 3=]
     """
 
+    for d in detections:
+        d["db"] = int(
+            nearest_axis_value(d["y"], db_candidates)
+        )
+        d["x_corrected"] = d["x"]
+
     anchors = [
         d for d in detections
-        if d["cls"] in (0, 1)  # O, X
+        if d["cls"] in (0, 1)
     ]
 
     for d in detections:
-        d["x_corrected"] = d["x"]
-
-        if d["cls"] not in (2, 3):  # [, ]
+        if d["cls"] not in (2, 3):
             continue
 
         candidates = [
             a for a in anchors
-            if abs(a["x"] - d["x"]) <= max_dx
-            and abs(a["y"] - d["y"]) <= max_dy
+            if a["db"] == d["db"]
+            and abs(a["x"] - d["x"]) <= max_dx
+            and (
+                (d["cls"] == 2 and a["x"] > d["x"])
+                or
+                (d["cls"] == 3 and a["x"] < d["x"])
+            )
         ]
 
         if candidates:
             nearest = min(
                 candidates,
-                key=lambda a: (
-                    abs(a["y"] - d["y"]),
-                    abs(a["x"] - d["x"]),
-                )
+                key=lambda a: abs(a["x"] - d["x"])
             )
 
             d["x_corrected"] = nearest["x"]
@@ -346,7 +364,10 @@ def process_audiogram(image_filepath):
                 # Get xyxy coordinates for rectangle drawing
                 x1, y1, x2, y2 = b.xyxy[0].tolist()
                 # cls = int(b.cls.item())
-                cls = CLASS_MAPPING[int(b.cls.item())]
+                raw_cls = int(b.cls.item())
+
+                cls = CLASS_MAPPING[raw_cls]
+                is_os = raw_cls % 2 == 1
                 conf = float(b.conf.item()) if hasattr(b, "conf") else np.nan
 
                 # Select a color and name for the class, with a safeguard for unknown classes
@@ -375,6 +396,8 @@ def process_audiogram(image_filepath):
                 y_center = b.xywh[0, 1].item()
                 detections.append({
                         "cls": cls,
+                        "raw_cls": raw_cls,
+                        "is_os": is_os,
                         "x": x_center,
                         "y": y_center,
                         "conf": conf,
@@ -383,21 +406,24 @@ def process_audiogram(image_filepath):
         # Correct bracket positions based on nearest O/X symbols
         detections = correct_bracket_positions(
             detections,
+            db_candidates=db_candidates,
             max_dx=35,
-            max_dy=15,
         )
 
         for d in detections:
             cls = d["cls"]
 
             x_center = d["x_corrected"]
-            y_center = d["y"]
+            db_level = d["db"]
 
             nearest_hz = nearest_axis_value(x_center, frequency_candidates)
-            db_level = int(nearest_axis_value(y_center, db_candidates))
-            rows.append(
-                {"cls": NEW_CLASS_NAMES[cls], "hz": nearest_hz, "db": db_level, "conf": d["conf"]}
-            )
+            rows.append({
+                "cls": NEW_CLASS_NAMES[cls],
+                "hz": nearest_hz,
+                "db": db_level,
+                "is_os": d["is_os"],
+                "conf": d["conf"],
+            })
 
         # Save the finally annotated image to a file
         imwrite(final_annotated_img_path, annotated_img)
@@ -416,11 +442,19 @@ def process_audiogram(image_filepath):
             subset=["cls", "hz"],
             keep="first",
         )
-        wide = df.pivot_table(
+        df["db_display"] = df.apply(
+            lambda row: (
+                f"{int(row['db'])}(os)"
+                if row["is_os"]
+                else str(int(row["db"]))
+            ),
+            axis=1,
+        )
+
+        wide = df.pivot(
             index="cls",
             columns="hz",
-            values="db",
-            aggfunc="first"
+            values="db_display",
         )
         wide = wide.reindex(columns=DEFAULT_FREQUENCIES).sort_index()
 
